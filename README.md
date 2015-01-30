@@ -1,4 +1,4 @@
-myDemo
+ClassLib
 ======
 
-testDemo
+自己的类库
