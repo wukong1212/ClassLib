@@ -1,0 +1,48 @@
+using System;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows.Forms;
+
+namespace ClassLib
+{
+    public static class ExtensionMethods
+    {
+        public static void SafeInvoke(this Control c, MethodInvoker method)
+        {
+            if (c.InvokeRequired)
+            {
+                c.BeginInvoke(method);
+            }
+            else
+            {
+                method();
+            }
+        }
+
+        public static resultT SafeInvoke<resultT>(this Control c, Func<resultT> method)
+        {
+            if (c.InvokeRequired)
+            {
+                return (resultT)c.Invoke(method);
+            }
+            else
+            {
+                return method();
+            }
+        }
+
+        public static bool IsDesignMode(this Control c)
+        {
+            bool isDesignMode = false;
+
+#if DEBUG
+            if (LicenseManager.UsageMode == LicenseUsageMode.Designtime || Process.GetCurrentProcess().ProcessName == "devenv")
+            {
+                isDesignMode = true;
+            }
+#endif
+
+            return isDesignMode;
+        }
+    }
+}
