@@ -22,7 +22,7 @@ namespace ClassLib
 
         /// <summary>
         /// 在连接套接字服务操作完成之后发生 
-        /// </summary>
+        /// </summary> 
         public event ConnectCompletedEventHandler OnConnectCompleted;
 
         /// <summary>
