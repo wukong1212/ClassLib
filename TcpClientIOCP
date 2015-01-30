@@ -1,0 +1,245 @@
+using System;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading;
+
+namespace ClassLib
+{
+    /// <summary>
+    /// 基于TCP协议和IOCP模型的套接字客户端
+    /// </summary>
+    public class TcpClientIOCP
+    {
+        public Socket Socket { get; private set; }
+        public Boolean Connected { get; private set; }
+        public UInt16 ReceiveBufferSize { get; set; }
+        public UInt16 ReceiveSleep { get; set; }
+
+        #region 事件
+        public delegate void ConnectCompletedEventHandler(Boolean connected);
+        public delegate void ReceivedCompletedEventHandler(Byte[] receivedData);
+        public delegate void SocketErrorOrDisconnectEventHandler(string errorMsg);
+
+        /// <summary>
+        /// 在连接套接字服务操作完成之后发生
+        /// </summary>
+        public event ConnectCompletedEventHandler OnConnectCompleted;
+
+        /// <summary>
+        /// 在数据包接收完成之后发生
+        /// </summary>
+        public event ReceivedCompletedEventHandler OnReceivedCompleted;
+
+        /// <summary>
+        /// 在出错时发生
+        /// </summary>
+        public event SocketErrorOrDisconnectEventHandler OnSocketError;
+
+        /// <summary>
+        /// 在与套接字服务断开连接时发生
+        /// </summary>
+        public event Action OnDisconnect;
+        #endregion
+
+        public SocketClient()
+        {
+            this.ReceiveBufferSize = UInt16.MaxValue;
+            this.ReceiveSleep = 5;
+        }
+
+        private void e_Completed(object sender, SocketAsyncEventArgs e)
+        {
+            eCompleted(sender, e);
+        }
+
+        private void eCompleted(object sender, SocketAsyncEventArgs e)
+        {
+            if (e.SocketError != SocketError.Success)
+            {
+                this.Connected = false;
+                if (this.OnSocketError != null)
+                {
+                    this.OnSocketError(new SocketException((Int32)e.SocketError).Message);
+                }
+            }
+            switch (e.LastOperation)
+            {
+                case SocketAsyncOperation.Connect:
+                    {
+                        this.Connected = (e.SocketError == SocketError.Success);
+                        if (this.OnConnectCompleted != null)
+                        {
+                            this.OnConnectCompleted(this.Connected);
+                        }
+
+                        if (this.Connected)
+                        {
+                            Byte[] receiveBuffer = new Byte[ReceiveBufferSize];
+                            e.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
+
+                            if (!this.Socket.ReceiveAsync(e))
+                            {
+                                eCompleted(sender, e);
+                            }
+                        }
+                    } break;
+
+                case SocketAsyncOperation.Receive:
+                    {
+                        if (e.SocketError == SocketError.Success)
+                        {
+                            if (e.BytesTransferred > 0)
+                            {
+                                Byte[] receiveData = new Byte[e.BytesTransferred];
+                                Buffer.BlockCopy(e.Buffer, 0, receiveData, 0, receiveData.Length);
+                                if (this.OnReceivedCompleted != null)
+                                {
+                                    this.OnReceivedCompleted(receiveData);
+                                }
+
+                                if (this.ReceiveSleep > 0)
+                                {
+                                    Thread.Sleep(this.ReceiveSleep);
+                                }
+                                Byte[] receiveBuffer = new Byte[ReceiveBufferSize];
+                                e.SetBuffer(receiveBuffer, 0, receiveBuffer.Length);
+                                if (!this.Socket.ReceiveAsync(e))
+                                {
+                                    eCompleted(sender, e);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            this.Connected = false;
+                            if (this.OnDisconnect != null)
+                            {
+                                this.OnDisconnect();
+                            }
+                        }
+                    } break;
+            }
+        }
+
+        /// <summary>
+        /// 异步连接套接字服务
+        /// </summary>
+        /// <param name="port"></param>
+        /// <param name="serverIp">可选参数，不传值则默认为本机IP</param>
+        public virtual void ConnectAsync(int socketServerPort, string socketServerIp = "")
+        {
+            IPEndPoint serverIPEndPoint = null;
+
+            if (string.IsNullOrWhiteSpace(socketServerIp))
+            {
+                IPHostEntry p = Dns.GetHostEntry(Dns.GetHostName());
+
+                foreach (IPAddress s in p.AddressList)
+                {
+                    if (!s.IsIPv6LinkLocal)
+                    {
+                        serverIPEndPoint = new IPEndPoint(s, socketServerPort);
+                    }
+                }
+            }
+            else
+            {
+                IPAddress serverIPAddress;
+                if (IPAddress.TryParse(socketServerIp, out serverIPAddress))
+                {
+                    serverIPEndPoint = new IPEndPoint(serverIPAddress, socketServerPort);
+                }
+                else
+                {
+                    throw new FormatException("参数socketServerIp是无法识别的IP地址");
+                }
+            }
+
+            SocketAsyncEventArgs e = new SocketAsyncEventArgs();
+            e.RemoteEndPoint = serverIPEndPoint;
+            e.Completed += new EventHandler<SocketAsyncEventArgs>(e_Completed);
+            this.Socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            if (!this.Socket.ConnectAsync(e))
+            {
+                eCompleted(null, e);
+            }
+        }
+
+        /// <summary>
+        /// 异步发送数据
+        /// </summary>
+        /// <param name="data"></param>
+        public virtual void SendAsync(Byte[] data)
+        {
+            SocketAsyncEventArgs e = new SocketAsyncEventArgs();
+            e.SetBuffer(data, 0, data.Length);
+            e.Completed += new EventHandler<SocketAsyncEventArgs>(e_Completed);
+            if (!this.Socket.SendAsync(e))
+            {
+                eCompleted(null, e);
+            }
+        }
+
+        public virtual void Close()
+        {
+            if (this.Socket != null)
+            {
+                this.Disconnect();
+                this.Socket.Close();
+            }
+        }
+
+        public void Disconnect()
+        {
+            if (this.Socket.Connected)
+            {
+                this.Socket.Disconnect(true);
+            }
+        }
+
+        /// <summary>
+        /// 重连
+        /// </summary>
+        /// <param name="socketServerPort"></param>
+        /// <param name="socketServerIp"></param>
+        public void Reconnection(int socketServerPort, string socketServerIp = "")
+        {
+            this.Disconnect();
+            this.ConnectAsync(socketServerPort, socketServerIp);
+        }
+
+        public bool IsConnected()
+        {
+            if (this.Socket.Poll(-1, SelectMode.SelectRead))
+            {
+                byte[] tmp = new byte[1];
+                int nRead = this.Socket.Receive(tmp);
+                if (nRead == 0)
+                {
+                    //socket连接已断开  
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        #region KeepAlive
+        System.Threading.Timer timer;
+        private void StartKeepAlive(UInt16 interval)
+        {
+            timer = new System.Threading.Timer(KeepAlive, new Object(), interval, interval);
+        }
+
+        private void KeepAlive(Object state)
+        {
+            this.SendAsync(new Byte[] { });
+        }
+
+        private void StopKeepAlive()
+        {
+            timer.Dispose();
+        }
+        #endregion
+
+    }
+}
