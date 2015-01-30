@@ -41,7 +41,7 @@ namespace ClassLib
                 isDesignMode = true;
             }
 #endif
-
+ 
             return isDesignMode;
         }
     }
