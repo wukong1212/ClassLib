@@ -1,0 +1,153 @@
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.SqlClient;
+using System.Linq;
+using System.Reflection;
+
+namespace ClassLib
+{
+    public static class QuickOrm
+    {
+        private static string S_defaultPrimaryKeyColumnName = "Id";
+
+        private static bool ExistsPrimaryKey<T>(T entity, out PropertyInfo[] aryPropertyInfo, out object primaryKeyValue)
+        {
+            primaryKeyValue = null;
+            aryPropertyInfo = entity.GetType().GetProperties();
+            PropertyInfo primaryKeyPropertyInfo = aryPropertyInfo.ToList().Find(a => a.Name == S_defaultPrimaryKeyColumnName);
+            if (primaryKeyPropertyInfo != null)
+            {
+                primaryKeyValue = primaryKeyPropertyInfo.GetValue(entity);
+                if (primaryKeyValue != null)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public static bool Insert<T>(T entity) where T : class
+        {
+            string sqlColumn = "";
+            string sqlParameter = "";
+            List<SqlParameter> pars = new List<SqlParameter>();
+            PropertyInfo[] aryPropertyInfo = entity.GetType().GetProperties();
+            foreach (PropertyInfo p in aryPropertyInfo)
+            {
+                if (p.Name != S_defaultPrimaryKeyColumnName)
+                {
+                    object propertyValue = p.GetValue(entity);
+                    if (propertyValue != null)
+                    {
+                        sqlColumn += sqlColumn.Length == 0 ? p.Name : "," + p.Name;
+                        sqlParameter += sqlParameter.Length == 0 ? "@" + p.Name : "," + "@" + p.Name;
+                        pars.Add(new SqlParameter("@" + p.Name, propertyValue));
+                    }
+                }
+            }
+            string sql = string.Format("insert into {0} ({1}) values({2}) ;", entity.GetType().Name, sqlColumn, sqlParameter);
+            return DBHelper.ExecuteNonQuery(sql, pars) == 1;
+        }
+
+        public static int Delete<T>(T entity = null) where T : class
+        {
+            string sql = string.Format("delete {0} ", entity.GetType().Name);
+            List<SqlParameter> pars = new List<SqlParameter>();
+            if (entity != null)
+            {
+                PropertyInfo[] aryPropertyInfo;
+                object primaryKeyValue;
+                if (ExistsPrimaryKey(entity, out aryPropertyInfo, out primaryKeyValue))
+                {
+                    pars.Add(new SqlParameter("@" + S_defaultPrimaryKeyColumnName, primaryKeyValue));
+                    string sqlWhere = " where " + S_defaultPrimaryKeyColumnName + "=@" + S_defaultPrimaryKeyColumnName;
+                    sql += sqlWhere;
+                }
+            }
+            return DBHelper.ExecuteNonQuery(sql, pars);
+        }
+
+        public static bool Update<T>(T entity) where T : class
+        {
+            PropertyInfo[] aryPropertyInfo;
+            object primaryKeyValue;
+            if (ExistsPrimaryKey(entity, out aryPropertyInfo, out primaryKeyValue))
+            {
+                string sqlColumnParameter = "";
+                List<SqlParameter> pars = new List<SqlParameter>();
+                foreach (PropertyInfo p in aryPropertyInfo)
+                {
+                    if (p.Name != S_defaultPrimaryKeyColumnName)
+                    {
+                        object propertyValue = p.GetValue(entity);
+                        if (propertyValue != null)
+                        {
+                            sqlColumnParameter += sqlColumnParameter.Length == 0 ? p.Name + ("=@" + p.Name) : "," + p.Name + ("=@" + p.Name);
+                            pars.Add(new SqlParameter("@" + p.Name, propertyValue));
+                        }
+                    }
+                }
+                pars.Add(new SqlParameter("@" + S_defaultPrimaryKeyColumnName, primaryKeyValue));
+                string sqlWhere = "where " + S_defaultPrimaryKeyColumnName + "=@" + S_defaultPrimaryKeyColumnName;
+                string sql = string.Format("update {0} set {1} {2} ;", entity.GetType().Name, sqlColumnParameter, sqlWhere);
+                return DBHelper.ExecuteNonQuery(sql, pars) == 1;
+            }
+            return false;
+        }
+
+        public static List<T> Query<T>(string sql = null) where T : class,new()
+        {
+            if (string.IsNullOrWhiteSpace(sql))
+            {
+                sql = string.Format("select * from {0} ;", typeof(T).Name);
+            }
+            DataTable dt = DBHelper.ExcuteQuery(sql);
+            List<T> list = new List<T>();
+            if (dt != null && dt.Rows.Count > 0)
+            {
+                PropertyInfo[] pros = typeof(T).GetProperties();
+                foreach (DataRow row in dt.Rows)
+                {
+                    T entity = new T();
+                    foreach (PropertyInfo p in pros)
+                    {
+                        if (row[p.Name] != null && row[p.Name] != DBNull.Value)
+                        {
+                            p.SetValue(entity, Convert.ChangeType(row[p.Name], p.PropertyType));
+                        }
+                    }
+                    list.Add(entity);
+                }
+            }
+            return list;
+        }
+
+        public static T Query<T>(T entity) where T : class
+        {
+            PropertyInfo[] aryPropertyInfo;
+            object primaryKeyValue;
+            if (ExistsPrimaryKey(entity, out aryPropertyInfo, out primaryKeyValue))
+            {
+                string sqlWhere = "where " + S_defaultPrimaryKeyColumnName + "=@" + S_defaultPrimaryKeyColumnName;
+                string sql = string.Format("select * from {0} {1} ;", typeof(T).Name, sqlWhere);
+                List<SqlParameter> pars = new List<SqlParameter>();
+                pars.Add(new SqlParameter("@" + S_defaultPrimaryKeyColumnName, primaryKeyValue));
+                DataTable dt = DBHelper.ExcuteQuery(sql, pars);
+                if (dt != null && dt.Rows.Count > 0)
+                {
+                    DataRow row = dt.Rows[0];
+                    foreach (PropertyInfo p in aryPropertyInfo)
+                    {
+                        if (row[p.Name] != null && row[p.Name] != DBNull.Value)
+                        {
+                            p.SetValue(entity, Convert.ChangeType(row[p.Name], p.PropertyType));
+                        }
+                    }
+                    return entity;
+                }
+            }
+            return default(T);
+        }
+    }
+}
