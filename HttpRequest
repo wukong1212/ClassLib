@@ -1,0 +1,208 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.IO;
+using System.Net;
+using System.Reflection;
+using System.Text;
+using System.Threading;
+
+namespace ClassLib
+{
+    public class RequestState
+    {
+        public static int BufferSize { get; set; }
+
+        public List<byte> RequestData { get; set; }
+        public byte[] BufferRead { get; set; }
+        public HttpWebRequest Request { get; set; }
+        public HttpWebResponse Response { get; set; }
+        public Stream ResponseStream { get; set; }
+        public Action<List<byte>> CallbackBytes { get; set; }
+
+        static RequestState()
+        {
+            BufferSize = 1024;
+        }
+
+        public RequestState()
+        {
+            BufferRead = new byte[BufferSize];
+            RequestData = new List<byte>();
+        }
+    }
+
+    public static class HttpRequest
+    {
+        public static Encoding Encoding { get; set; }
+        const int DefaultTimeout = 30 * 1000;
+
+        static HttpRequest()
+        {
+            Encoding = Encoding.UTF8;
+        }
+
+        private static byte[] StreamToBytes(Stream stream)
+        {
+            byte[] bytes = new byte[stream.Length];
+            stream.Read(bytes, 0, bytes.Length);
+            stream.Seek(0, SeekOrigin.Begin);
+            return bytes;
+        }
+
+        private static string SerializeQueryString(object parameters)
+        {
+            if (parameters == null)
+            {
+                return null;
+            }
+            string querystring = string.Empty;
+            int i = 0;
+            try
+            {
+                Type t = parameters.GetType();
+                PropertyInfo[] properties;
+#if NETFX_CORE
+                properties = t.GetTypeInfo().DeclaredProperties.ToArray();
+#else
+                properties = t.GetProperties();
+#endif
+
+
+                foreach (var property in properties)
+                {
+                    object value = property.GetValue(parameters, null);
+                    if (value != null)
+                    {
+                        //querystring += property.Name + "=" + System.Uri.EscapeDataString(value.ToString());
+                        querystring += property.Name + "=" + value.ToString();
+
+                        if (++i < properties.Length)
+                        {
+                            querystring += "&";
+                        }
+                    }
+                }
+            }
+            catch (NullReferenceException e)
+            {
+                throw new ArgumentNullException("Paramters cannot be a null object", e);
+            }
+
+            return querystring;
+        }
+
+        private static Action<List<byte>> StringToListBytesCallback(Action<string> stringCallback)
+        {
+            return (List<byte> list) =>
+            {
+                if (stringCallback != null)
+                {
+                    stringCallback(Encoding.GetString(list.ToArray()));
+                }
+            };
+        }
+
+        private static Action<Stream> BytesToStreamCallback(Action<byte[]> bytesCallback)
+        {
+            return (Stream resultStream) =>
+            {
+                bytesCallback(StreamToBytes(resultStream));
+            };
+        }
+
+        private static string CreateFormDataBoundary()
+        {
+            return "---------------------------" + DateTime.Now.Ticks.ToString("x");
+        }
+
+        private static void TimeoutCallback(object state, bool timedOut)
+        {
+            if (timedOut)
+            {
+                HttpWebRequest request = state as HttpWebRequest;
+                if (request != null)
+                {
+                    request.Abort();
+                }
+            }
+        }
+
+        private static void ResponseCallback(IAsyncResult asynchronousResult)
+        {
+            RequestState requestState = (RequestState)asynchronousResult.AsyncState;
+            HttpWebRequest httpWebRequest = requestState.Request;
+            requestState.Response = (HttpWebResponse)httpWebRequest.EndGetResponse(asynchronousResult);
+
+            Stream responseStream = requestState.Response.GetResponseStream();
+            requestState.ResponseStream = responseStream;
+
+            IAsyncResult asynchronousInputRead = responseStream.BeginRead(requestState.BufferRead, 0, RequestState.BufferSize, new AsyncCallback(ReadCallBack), requestState);
+            return;
+        }
+
+        private static void ReadCallBack(IAsyncResult asyncResult)
+        {
+            RequestState requestState = (RequestState)asyncResult.AsyncState;
+            Stream responseStream = requestState.ResponseStream;
+            int read = responseStream.EndRead(asyncResult);
+            if (read > 0)
+            {
+                byte[] tmp = new byte[read];
+                Buffer.BlockCopy(requestState.BufferRead, 0, tmp, 0, read);
+                requestState.RequestData.AddRange(tmp);
+                IAsyncResult asynchronousResult = responseStream.BeginRead(requestState.BufferRead, 0, RequestState.BufferSize, new AsyncCallback(ReadCallBack), requestState);
+                return;
+            }
+            else
+            {
+                if (requestState.CallbackBytes != null)
+                {
+                    requestState.CallbackBytes(requestState.RequestData);
+                }
+                responseStream.Close();
+            }
+        }
+
+        public static void Get(string requestUriString, object parameters, Action<List<byte>> callback, NameValueCollection webHeaderCollection = null)
+        {
+            string queryString = SerializeQueryString(parameters);
+            if (!string.IsNullOrEmpty(queryString))
+            {
+                queryString = "?" + queryString;
+            }
+
+            HttpWebRequest httpWebRequest = WebRequest.Create(requestUriString + queryString) as HttpWebRequest;
+            httpWebRequest.Method = "Get";
+
+            if (webHeaderCollection != null && webHeaderCollection.Count > 0)
+            {
+                httpWebRequest.Headers.Add(webHeaderCollection);
+            }
+
+            RequestState requestState = new RequestState()
+            {
+                Request = httpWebRequest,
+                CallbackBytes = callback
+            };
+
+            IAsyncResult iAsyncResult = httpWebRequest.BeginGetResponse(new AsyncCallback(ResponseCallback), requestState) as IAsyncResult;
+            ThreadPool.RegisterWaitForSingleObject(iAsyncResult.AsyncWaitHandle, new WaitOrTimerCallback(TimeoutCallback), httpWebRequest, DefaultTimeout, true);
+        }
+
+        public static void Post(string requestUriString, object parameters, Action<List<byte>> callback, NameValueCollection webHeaderCollection = null)
+        {
+            string postDataStr = string.Empty;
+            if (parameters.GetType().FullName == "System.String")
+            {
+                postDataStr = parameters.ToString();
+            }
+            else
+            {
+                postDataStr = SerializeQueryString(parameters);
+            }
+            Post(requestUriString, postDataStr, callback, webHeaderCollection);
+        }
+
+    }
+}
