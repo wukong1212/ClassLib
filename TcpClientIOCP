@@ -21,7 +21,7 @@ namespace ClassLib
         public delegate void SocketErrorOrDisconnectEventHandler(string errorMsg);
 
         /// <summary>
-        /// 在连接套接字服务操作完成之后发生
+        /// 在连接套接字服务操作完成之后发生 
         /// </summary>
         public event ConnectCompletedEventHandler OnConnectCompleted;
 
