@@ -8,8 +8,11 @@ using System.Text;
 using System.Threading;
 
 
-namespace ClassLib
+namespace Trade41UserRegisterService.Contract
 {
+    /// <summary>
+    /// Internet 资源的异步请求的状态对象
+    /// </summary>
     public class RequestState
     {
         public int BufferSize { get; set; }
@@ -19,7 +22,7 @@ namespace ClassLib
         public Stream ResponseStream { get; set; }
         public List<byte> RequestData { get; set; }
         public Action<List<byte>> Callback { get; set; }
- 
+
         public RequestState()
         {
             BufferSize = 1024;
@@ -127,7 +130,7 @@ namespace ClassLib
             Stream responseStream = requestState.Response.GetResponseStream();
             requestState.ResponseStream = responseStream;
 
-            IAsyncResult asynchronousInputRead = responseStream.BeginRead(requestState.BufferRead, 0, RequestState.BufferSize, new AsyncCallback(ReadCallBack), requestState);
+            IAsyncResult asynchronousInputRead = responseStream.BeginRead(requestState.BufferRead, 0, requestState.BufferSize, new AsyncCallback(ReadCallBack), requestState);
             return;
         }
 
@@ -141,7 +144,7 @@ namespace ClassLib
                 byte[] tmp = new byte[read];
                 Buffer.BlockCopy(requestState.BufferRead, 0, tmp, 0, read);
                 requestState.RequestData.AddRange(tmp);
-                IAsyncResult asynchronousResult = responseStream.BeginRead(requestState.BufferRead, 0, RequestState.BufferSize, new AsyncCallback(ReadCallBack), requestState);
+                IAsyncResult asynchronousResult = responseStream.BeginRead(requestState.BufferRead, 0, requestState.BufferSize, new AsyncCallback(ReadCallBack), requestState);
                 return;
             }
             else
