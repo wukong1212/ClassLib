@@ -69,7 +69,7 @@ namespace ClassLib
         }
 
         public static bool Update<T>(T entity) where T : class
-        {
+        { 
             PropertyInfo[] aryPropertyInfo;
             object primaryKeyValue;
             if (ExistsPrimaryKey(entity, out aryPropertyInfo, out primaryKeyValue))
