@@ -7,39 +7,39 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 
+
 namespace ClassLib
 {
     public class RequestState
     {
-        public static int BufferSize { get; set; }
-
-        public List<byte> RequestData { get; set; }
+        public int BufferSize { get; set; }
         public byte[] BufferRead { get; set; }
         public HttpWebRequest Request { get; set; }
         public HttpWebResponse Response { get; set; }
         public Stream ResponseStream { get; set; }
-        public Action<List<byte>> CallbackBytes { get; set; }
- 
-        static RequestState()
-        {
-            BufferSize = 1024;
-        }
+        public List<byte> RequestData { get; set; }
+        public Action<List<byte>> Callback { get; set; }
 
         public RequestState()
         {
+            BufferSize = 1024;
             BufferRead = new byte[BufferSize];
             RequestData = new List<byte>();
         }
     }
 
+    /// <summary>
+    /// 用于发送 HTTP 请求和接收来自通过 URI 确认的资源的 HTTP 响应
+    /// </summary>
     public static class HttpRequest
     {
         public static Encoding Encoding { get; set; }
-        const int DefaultTimeout = 30 * 1000;
+        public static int Timeout { get; set; }
 
         static HttpRequest()
         {
             Encoding = Encoding.UTF8;
+            Timeout = 30 * 1000;
         }
 
         private static byte[] StreamToBytes(Stream stream)
@@ -58,35 +58,25 @@ namespace ClassLib
             }
             string querystring = string.Empty;
             int i = 0;
-            try
-            {
-                Type t = parameters.GetType();
-                PropertyInfo[] properties;
+            Type t = parameters.GetType();
+            PropertyInfo[] properties;
 #if NETFX_CORE
                 properties = t.GetTypeInfo().DeclaredProperties.ToArray();
 #else
-                properties = t.GetProperties();
+            properties = t.GetProperties();
 #endif
 
-
-                foreach (var property in properties)
+            foreach (var property in properties)
+            {
+                object value = property.GetValue(parameters, null);
+                if (value != null)
                 {
-                    object value = property.GetValue(parameters, null);
-                    if (value != null)
+                    querystring += property.Name + "=" + System.Uri.EscapeDataString(value.ToString());
+                    if (++i < properties.Length)
                     {
-                        //querystring += property.Name + "=" + System.Uri.EscapeDataString(value.ToString());
-                        querystring += property.Name + "=" + value.ToString();
-
-                        if (++i < properties.Length)
-                        {
-                            querystring += "&";
-                        }
+                        querystring += "&";
                     }
                 }
-            }
-            catch (NullReferenceException e)
-            {
-                throw new ArgumentNullException("Paramters cannot be a null object", e);
             }
 
             return querystring;
@@ -156,9 +146,9 @@ namespace ClassLib
             }
             else
             {
-                if (requestState.CallbackBytes != null)
+                if (requestState.Callback != null)
                 {
-                    requestState.CallbackBytes(requestState.RequestData);
+                    requestState.Callback(requestState.RequestData);
                 }
                 responseStream.Close();
             }
@@ -183,25 +173,45 @@ namespace ClassLib
             RequestState requestState = new RequestState()
             {
                 Request = httpWebRequest,
-                CallbackBytes = callback
+                Callback = callback
             };
 
             IAsyncResult iAsyncResult = httpWebRequest.BeginGetResponse(new AsyncCallback(ResponseCallback), requestState) as IAsyncResult;
-            ThreadPool.RegisterWaitForSingleObject(iAsyncResult.AsyncWaitHandle, new WaitOrTimerCallback(TimeoutCallback), httpWebRequest, DefaultTimeout, true);
+            ThreadPool.RegisterWaitForSingleObject(iAsyncResult.AsyncWaitHandle, new WaitOrTimerCallback(TimeoutCallback), httpWebRequest, Timeout, true);
         }
 
-        public static void Post(string requestUriString, object parameters, Action<List<byte>> callback, NameValueCollection webHeaderCollection = null)
+        public static void Post(string requestUriString, object postData, Action<List<byte>> callback, NameValueCollection webHeaderCollection = null)
         {
             string postDataStr = string.Empty;
-            if (parameters.GetType().FullName == "System.String")
+            if (postData.GetType().FullName == "System.String")
             {
-                postDataStr = parameters.ToString();
+                postDataStr = postData.ToString();
             }
             else
             {
-                postDataStr = SerializeQueryString(parameters);
+                postDataStr = SerializeQueryString(postData);
             }
-            Post(requestUriString, postDataStr, callback, webHeaderCollection);
+
+            HttpWebRequest httpWebRequest = WebRequest.Create(requestUriString) as HttpWebRequest;
+            httpWebRequest.Method = "Post";
+
+            if (webHeaderCollection != null && webHeaderCollection.Count > 0)
+            {
+                httpWebRequest.Headers.Add(webHeaderCollection);
+            }
+
+            byte[] aryPostBytes = Encoding.GetBytes(postDataStr);
+            httpWebRequest.ContentLength = aryPostBytes.Length;
+            Stream requestStream = httpWebRequest.GetRequestStream();
+            requestStream.Write(aryPostBytes, 0, aryPostBytes.Length);
+
+            RequestState requestState = new RequestState();
+            requestState.Request = httpWebRequest;
+            requestState.Callback = callback;
+
+            IAsyncResult iAsyncResult = httpWebRequest.BeginGetResponse(new AsyncCallback(ResponseCallback), requestState) as IAsyncResult;
+            ThreadPool.RegisterWaitForSingleObject(iAsyncResult.AsyncWaitHandle, new WaitOrTimerCallback(TimeoutCallback), httpWebRequest, Timeout, true);
+            requestState.Response.Close();
         }
 
     }
