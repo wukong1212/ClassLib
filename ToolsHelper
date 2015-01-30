@@ -1,0 +1,97 @@
+using System;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.Net;
+using System.Reflection;
+using System.Text;
+
+namespace ClassLib
+{
+    public static class ToolsHelper
+    {
+        public static string GetEnumDescription<T>(int enumValue)
+        {
+            Type enumType = typeof(T);
+            if (enumType.IsEnum)
+            {
+                string name = Enum.GetName(enumType, enumValue);
+                if (name == null)
+                {
+                    return "未知";
+                }
+                object[] objs = enumType.GetField(name).GetCustomAttributes(typeof(DescriptionAttribute), false);
+                if (objs == null || objs.Length == 0)
+                {
+                    return string.Empty;
+                }
+                else
+                {
+                    DescriptionAttribute attr = objs[0] as DescriptionAttribute;
+                    return attr.Description;
+                }
+            }
+            else
+            {
+                throw new TypeAccessException("该方法仅支持获取枚举的DescriptionAttribute");
+            }
+        }
+
+        public static string GetPropertyInfo<T>(T entity)
+        {
+            string result = string.Empty;
+            if (entity != null)
+            {
+                Type type = typeof(T);
+                result += "\n";
+                result += type.Name;
+                result += "{";
+
+                PropertyInfo[] aryPropertyInfos = type.GetProperties();
+                if (aryPropertyInfos != null && aryPropertyInfos.Length > 0)
+                {
+                    foreach (PropertyInfo p in aryPropertyInfos)
+                    {
+                        if (!p.IsSpecialName)
+                        {
+                            result += "\n   " + p.Name + " : " + p.GetValue(entity, null);
+                        }
+
+                    }
+                }
+                result += "\n}";
+            }
+            return result;
+        }
+
+        public static void ProcessRestart(string fileName = "")
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                fileName = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            }
+            Process p = new Process();
+            p.StartInfo.FileName = fileName;
+            p.Start();
+            Process.GetCurrentProcess().Kill();
+            Process.GetCurrentProcess().Close();
+        }
+
+        public static int ConvertDateTimeInt(System.DateTime time)
+        {
+            double intResult = 0;
+            System.DateTime startTime = TimeZone.CurrentTimeZone.ToLocalTime(new System.DateTime(1970, 1, 1));
+            intResult = (time - startTime).TotalSeconds;
+            return Convert.ToInt32(intResult);
+        }
+
+        public static string ConvertIntDatetime(double utc)
+        {
+            System.DateTime startTime = TimeZone.CurrentTimeZone.ToLocalTime(new System.DateTime(1970, 1, 1));
+            startTime = startTime.AddSeconds(utc);
+            //startTime = startTime.AddHours(8);//转化为北京时间(北京时间=UTC时间+8小时 )
+            return startTime.ToString("yyyy-MM-dd HH:mm:ss");
+        }
+        
+    }
+}
