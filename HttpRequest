@@ -19,7 +19,7 @@ namespace ClassLib
         public Stream ResponseStream { get; set; }
         public List<byte> RequestData { get; set; }
         public Action<List<byte>> Callback { get; set; }
-
+ 
         public RequestState()
         {
             BufferSize = 1024;
