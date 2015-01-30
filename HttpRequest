@@ -19,7 +19,7 @@ namespace ClassLib
         public HttpWebResponse Response { get; set; }
         public Stream ResponseStream { get; set; }
         public Action<List<byte>> CallbackBytes { get; set; }
-
+ 
         static RequestState()
         {
             BufferSize = 1024;
