@@ -19,10 +19,7 @@ namespace ClassLib
             if (primaryKeyPropertyInfo != null)
             {
                 primaryKeyValue = primaryKeyPropertyInfo.GetValue(entity);
-                if (primaryKeyValue != null)
-                {
-                    return true;
-                }
+                return primaryKeyValue != null;
             }
             return false;
         }
