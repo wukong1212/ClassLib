@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading;
 
 
-namespace Trade41UserRegisterService.Contract
+namespace ClassLib
 {
     /// <summary>
     /// Internet 资源的异步请求的状态对象
