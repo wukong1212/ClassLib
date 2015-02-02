@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
 
-namespace ClassLib
+namespace Utility.Data
 {
     /// <summary>
     /// SQLServer数据库操作类
@@ -115,7 +115,7 @@ namespace ClassLib
             }
         }
 
-        public static DataTable ExecuteDataTable(string cmdText, List<SqlParameter> commandParameters = null, string connectionString = null, CommandType cmdType = CommandType.Text)
+        public static DataTable ExcuteQuery(string cmdText, List<SqlParameter> commandParameters = null, string connectionString = null, CommandType cmdType = CommandType.Text)
         {
             using (SqlConnection conn = new SqlConnection(connectionString ?? ConnectionString))
             {
@@ -130,7 +130,7 @@ namespace ClassLib
             }
         }
 
-        public static DataTable ExecuteDataTable(SqlConnection connection, string cmdText, List<SqlParameter> commandParameters = null, CommandType cmdType = CommandType.Text)
+        public static DataTable ExcuteQuery(SqlConnection connection, string cmdText, List<SqlParameter> commandParameters = null, CommandType cmdType = CommandType.Text)
         {
             bool isConnClosed = connection.State == ConnectionState.Closed;
             SqlCommand cmd = new SqlCommand();
