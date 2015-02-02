@@ -8,11 +8,10 @@ using System.Text;
 using System.Threading;
 
 
-namespace Trade41UserRegisterService.Contract
+namespace ClassLib
 {
     /// <summary>
     /// Internet 资源的异步请求的状态对象
-    /// Create by he.zhixiang 2015-01-26
     /// </summary>
     internal class RequestState
     {
@@ -34,7 +33,6 @@ namespace Trade41UserRegisterService.Contract
 
     /// <summary>
     /// 用于发送 HTTP 请求和接收来自通过 URI 确认的资源的 HTTP 响应
-    /// Create by he.zhixiang 2015-01-26
     /// </summary>
     internal static class HttpRequest
     {
