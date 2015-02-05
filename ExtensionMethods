@@ -7,6 +7,104 @@ namespace ClassLib
 {
     public static class ExtensionMethods
     {
+        public static T ConvertTo<T>(this object source, T defaultValue = default(T), bool throwOnError = false)
+        {
+            if (source == null)
+            {
+                if (throwOnError)
+                {
+                    throw new ArgumentNullException("source");
+                }
+
+                return default(T);
+            }
+
+            try
+            {
+                var targetType = typeof(T);
+
+                if (source.GetType() == targetType)
+                {
+                    return (T)source;
+                }
+
+                var converter = TypeDescriptor.GetConverter(source);
+
+                if (converter != null && converter.CanConvertTo(targetType))
+                {
+                    return (T)converter.ConvertTo(source, targetType);
+                }
+
+                converter = TypeDescriptor.GetConverter(targetType);
+
+                if (converter != null && converter.CanConvertFrom(source.GetType()))
+                {
+                    return (T)converter.ConvertFrom(source);
+                }
+
+                throw new InvalidOperationException();
+            }
+            catch
+            {
+                if (throwOnError)
+                {
+                    throw;
+                }
+                else
+                {
+                    return defaultValue;
+                }
+            }
+        }
+
+        public static object ConvertTo(this object source, Type targetType, bool throwOnError = false)
+        {
+            if (source == null)
+            {
+                if (throwOnError)
+                {
+                    throw new ArgumentNullException("source");
+                }
+
+                return null;
+            }
+
+            try
+            {
+                if (source.GetType() == targetType)
+                {
+                    return source;
+                }
+
+                var converter = TypeDescriptor.GetConverter(source);
+
+                if (converter != null && converter.CanConvertTo(targetType))
+                {
+                    return converter.ConvertTo(source, targetType);
+                }
+
+                converter = TypeDescriptor.GetConverter(targetType);
+
+                if (converter != null && converter.CanConvertFrom(source.GetType()))
+                {
+                    return converter.ConvertFrom(source);
+                }
+
+                throw new InvalidOperationException();
+            }
+            catch
+            {
+                if (throwOnError)
+                {
+                    throw;
+                }
+                else
+                {
+                    return null;
+                }
+            }
+        }
+    
         public static void SafeInvoke(this Control c, MethodInvoker method)
         {
             if (c.InvokeRequired)
