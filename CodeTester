@@ -1,0 +1,140 @@
+using System;
+    using System.Diagnostics;
+    using System.Runtime.InteropServices;
+    using System.Threading;
+    using System.Collections;
+
+    /// <summary>
+    /// 用于代码测试的帮助类
+    /// .NET 2.0及Vista或以上操作系统
+    /// </summary>
+    public static class CodeTester
+    {
+        [DllImport("kernel32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool QueryThreadCycleTime(IntPtr threadHandle, ref ulong cycleTime);
+
+        [DllImport("kernel32.dll")]
+        static extern IntPtr GetCurrentThread();
+
+        public delegate void ActionDelegate();
+
+        static CodeTester()
+        {
+            Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.High;
+            Thread.CurrentThread.Priority = ThreadPriority.Highest;
+            RunTime("", 1, () => { }, null);
+        }
+
+        private static ulong GetCycleCount()
+        {
+            ulong cycleCount = 0;
+            QueryThreadCycleTime(GetCurrentThread(), ref cycleCount);
+            return cycleCount;
+        }
+
+        public static void RunTime(string name, int iteration, ActionDelegate action)
+        {
+            RunTime(name, iteration, action, Console.WriteLine);
+        }
+
+        public static void RunTime(string name, int iteration, ActionDelegate action, Action<string> outPut)
+        {
+            if (iteration < 1) return;
+            if (action == null) return;
+
+            string outPutStr = string.Empty;
+
+            // 1.
+            outPutStr += name + "\n";
+
+            // 2.
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
+            int[] gcCounts = new int[GC.MaxGeneration + 1];
+            for (int i = 0; i <= GC.MaxGeneration; i++)
+            {
+                gcCounts[i] = GC.CollectionCount(i);
+            }
+
+            // 3.
+            Stopwatch watch = new Stopwatch();
+            watch.Start();
+            ulong cycleCount = GetCycleCount();
+            for (int i = 0; i < iteration; i++) action();
+            ulong cpuCycles = GetCycleCount() - cycleCount;
+            watch.Stop();
+
+            // 4.
+            outPutStr += ("\tTime Elapsed:\t" + watch.ElapsedMilliseconds.ToString("N0") + "ms") + "\n";
+            outPutStr += ("\tCPU Cycles:\t" + cpuCycles.ToString("N0")) + "\n";
+
+            // 5.
+            for (int i = 0; i <= GC.MaxGeneration; i++)
+            {
+                int count = GC.CollectionCount(i) - gcCounts[i];
+                outPutStr += ("\tGen " + i + ": \t\t" + count) + "\n";
+            }
+
+            if (outPut != null)
+            {
+                outPut(outPutStr);
+            }
+        }
+
+        public static void GetCategoryNameList()
+        {
+            PerformanceCounterCategory[] myCat2;
+            myCat2 = PerformanceCounterCategory.GetCategories();
+            for (int i = 0; i < myCat2.Length; i++)
+            {
+                Console.WriteLine(myCat2[i].CategoryName.ToString());
+            }
+        }
+
+        public static void GetInstanceNameListANDCounterNameList(string CategoryName)
+        {
+            string[] instanceNames;
+            ArrayList counters = new ArrayList();
+            PerformanceCounterCategory mycat = new PerformanceCounterCategory(CategoryName);
+            try
+            {
+                instanceNames = mycat.GetInstanceNames();
+                if (instanceNames.Length == 0)
+                {
+                    counters.AddRange(mycat.GetCounters());
+                }
+                else
+                {
+                    for (int i = 0; i < instanceNames.Length; i++)
+                    {
+                        counters.AddRange(mycat.GetCounters(instanceNames[i]));
+                    }
+                }
+                for (int i = 0; i < instanceNames.Length; i++)
+                {
+                    Console.WriteLine(instanceNames[i]);
+                }
+                Console.WriteLine("******************************");
+                foreach (PerformanceCounter counter in counters)
+                {
+                    Console.WriteLine(counter.CounterName);
+                }
+            }
+            catch (Exception)
+            {
+                Console.WriteLine("Unable to list the counters for this category");
+            }
+        }
+
+        public static void PerformanceCounterFun(string CategoryName, string InstanceName, string CounterName)
+        {
+            PerformanceCounter pc = new PerformanceCounter(CategoryName, CounterName, InstanceName);
+            while (true)
+            {
+                Thread.Sleep(1000); // wait for 1 second 
+                float cpuLoad = pc.NextValue();
+                Console.WriteLine("CPU load = " + cpuLoad + " %.");
+            }
+        }
+
+    }
