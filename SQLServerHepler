@@ -3,224 +3,221 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
 
-namespace Utility.Data
-{
     /// <summary>
-    /// SQLServer数据库操作类
-    /// </summary>
-    public abstract class SQLServerHepler
-    {
-        public static string ConnectionString { get; set; }
+	/// SQLServer数据库操作类
+	/// </summary>
+	public abstract class SQLServerHepler
+	{
+		public static string ConnectionString { get; set; }
 
-        static SQLServerHepler()
-        {
-            ConnectionString = GetConnectionStringByConfig();
-        }
+		static SQLServerHepler()
+		{
+			ConnectionString = GetConnectionStringByConfig();
+		}
 
-        private static void PrepareCommand(SqlCommand cmd, SqlConnection conn, SqlTransaction trans, CommandType cmdType, string cmdText, List<SqlParameter> cmdParms)
-        {
-            cmd.Connection = conn;
-            cmd.CommandText = cmdText;
-            cmd.CommandType = cmdType;
+		private static void PrepareCommand(SqlCommand cmd, SqlConnection conn, SqlTransaction trans, CommandType cmdType, string cmdText, List<SqlParameter> cmdParms)
+		{
+			cmd.Connection = conn;
+			cmd.CommandText = cmdText;
+			cmd.CommandType = cmdType;
 
-            if (trans != null)
-            {
-                cmd.Transaction = trans;
-            }
+			if (trans != null)
+			{
+				cmd.Transaction = trans;
+			}
 
-            if (cmdParms != null && cmdParms.Count > 0)
-            {
-                cmdParms.ForEach(a => cmd.Parameters.Add(a));
-            }
+			if (cmdParms != null && cmdParms.Count > 0)
+			{
+				cmdParms.ForEach(a => cmd.Parameters.Add(a));
+			}
 
-            if (conn.State != ConnectionState.Open)
-            {
-                conn.Open();
-            }
-        }
+			if (conn.State != ConnectionState.Open)
+			{
+				conn.Open();
+			}
+		}
 
-        public static string GetConnectionStringByConfig()
-        {
-            return System.Configuration.ConfigurationManager.ConnectionStrings["SQLConnString"].ConnectionString;
-        }
+		public static string GetConnectionStringByConfig()
+		{
+			return System.Configuration.ConfigurationManager.ConnectionStrings["SQLConnString"].ConnectionString;
+		}
 
-        public static int ExecuteNonQuery(string cmdText, List<SqlParameter> commandParameters = null, string connectionString = null, CommandType cmdType = CommandType.Text)
-        {
-            using (SqlConnection conn = new SqlConnection(connectionString ?? ConnectionString))
-            {
-                SqlCommand cmd = new SqlCommand();
-                PrepareCommand(cmd, conn, null, cmdType, cmdText, commandParameters);
-                return cmd.ExecuteNonQuery();
-            }
-        }
+		public static int ExecuteNonQuery(string cmdText, List<SqlParameter> commandParameters = null, string connectionString = null, CommandType cmdType = CommandType.Text)
+		{
+			using (SqlConnection conn = new SqlConnection(connectionString ?? ConnectionString))
+			{
+				SqlCommand cmd = new SqlCommand();
+				PrepareCommand(cmd, conn, null, cmdType, cmdText, commandParameters);
+				return cmd.ExecuteNonQuery();
+			}
+		}
 
-        public static int ExecuteNonQuery(SqlConnection connection, string cmdText, List<SqlParameter> commandParameters = null, CommandType cmdType = CommandType.Text)
-        {
-            bool isConnClosed = connection.State == ConnectionState.Closed;
-            SqlCommand cmd = new SqlCommand();
-            PrepareCommand(cmd, connection, null, cmdType, cmdText, commandParameters);
-            int affectedRows = cmd.ExecuteNonQuery();
-            if (isConnClosed)
-            {
-                connection.Close();
-            }
-            return affectedRows;
-        }
+		public static int ExecuteNonQuery(SqlConnection connection, string cmdText, List<SqlParameter> commandParameters = null, CommandType cmdType = CommandType.Text)
+		{
+			bool isConnClosed = connection.State == ConnectionState.Closed;
+			SqlCommand cmd = new SqlCommand();
+			PrepareCommand(cmd, connection, null, cmdType, cmdText, commandParameters);
+			int affectedRows = cmd.ExecuteNonQuery();
+			if (isConnClosed)
+			{
+				connection.Close();
+			}
+			return affectedRows;
+		}
 
-        public static int ExecuteNonQuery(SqlTransaction trans, string cmdText, List<SqlParameter> commandParameters = null, CommandType cmdType = CommandType.Text)
-        {
-            bool isConnClosed = trans.Connection.State == ConnectionState.Closed;
-            SqlCommand cmd = new SqlCommand();
-            PrepareCommand(cmd, trans.Connection, trans, cmdType, cmdText, commandParameters);
-            int affectedRows = cmd.ExecuteNonQuery();
-            if (isConnClosed)
-            {
-                trans.Connection.Close();
-            }
-            return affectedRows;
-        }
+		public static int ExecuteNonQuery(SqlTransaction trans, string cmdText, List<SqlParameter> commandParameters = null, CommandType cmdType = CommandType.Text)
+		{
+			bool isConnClosed = trans.Connection.State == ConnectionState.Closed;
+			SqlCommand cmd = new SqlCommand();
+			PrepareCommand(cmd, trans.Connection, trans, cmdType, cmdText, commandParameters);
+			int affectedRows = cmd.ExecuteNonQuery();
+			if (isConnClosed)
+			{
+				trans.Connection.Close();
+			}
+			return affectedRows;
+		}
 
-        public static SqlDataReader ExecuteReader(string cmdText, List<SqlParameter> commandParameters = null, string connectionString = null, CommandType cmdType = CommandType.Text)
-        {
-            SqlCommand cmd = new SqlCommand();
-            SqlConnection conn = new SqlConnection(connectionString ?? ConnectionString);
+		public static SqlDataReader ExecuteReader(string cmdText, List<SqlParameter> commandParameters = null, string connectionString = null, CommandType cmdType = CommandType.Text)
+		{
+			SqlCommand cmd = new SqlCommand();
+			SqlConnection conn = new SqlConnection(connectionString ?? ConnectionString);
 
-            try
-            {
-                PrepareCommand(cmd, conn, null, cmdType, cmdText, commandParameters);
-                SqlDataReader rdr = cmd.ExecuteReader(CommandBehavior.CloseConnection);
-                return rdr;
-            }
-            catch (Exception e)
-            {
-                conn.Close();
-                throw e;
-            }
-        }
+			try
+			{
+				PrepareCommand(cmd, conn, null, cmdType, cmdText, commandParameters);
+				SqlDataReader rdr = cmd.ExecuteReader(CommandBehavior.CloseConnection);
+				return rdr;
+			}
+			catch (Exception e)
+			{
+				conn.Close();
+				throw e;
+			}
+		}
 
-        public static SqlDataReader ExecuteReader(SqlConnection connection, string cmdText, List<SqlParameter> commandParameters = null, CommandType cmdType = CommandType.Text)
-        {
-            SqlCommand cmd = new SqlCommand();
+		public static SqlDataReader ExecuteReader(SqlConnection connection, string cmdText, List<SqlParameter> commandParameters = null, CommandType cmdType = CommandType.Text)
+		{
+			SqlCommand cmd = new SqlCommand();
 
-            try
-            {
-                PrepareCommand(cmd, connection, null, cmdType, cmdText, commandParameters);
-                SqlDataReader rdr = cmd.ExecuteReader(CommandBehavior.CloseConnection);
-                return rdr;
-            }
-            catch (Exception e)
-            {
-                connection.Close();
-                throw e;
-            }
-        }
+			try
+			{
+				PrepareCommand(cmd, connection, null, cmdType, cmdText, commandParameters);
+				SqlDataReader rdr = cmd.ExecuteReader(CommandBehavior.CloseConnection);
+				return rdr;
+			}
+			catch (Exception e)
+			{
+				connection.Close();
+				throw e;
+			}
+		}
 
-        public static DataTable ExcuteQuery(string cmdText, List<SqlParameter> commandParameters = null, string connectionString = null, CommandType cmdType = CommandType.Text)
-        {
-            using (SqlConnection conn = new SqlConnection(connectionString ?? ConnectionString))
-            {
-                SqlCommand cmd = new SqlCommand();
-                PrepareCommand(cmd, conn, null, cmdType, cmdText, commandParameters);
-                using (SqlDataAdapter sda = new SqlDataAdapter(cmd))
-                {
-                    DataTable dt = new DataTable();
-                    sda.Fill(dt);
-                    return dt;
-                }
-            }
-        }
+		public static DataTable ExcuteQuery(string cmdText, List<SqlParameter> commandParameters = null, string connectionString = null, CommandType cmdType = CommandType.Text)
+		{
+			using (SqlConnection conn = new SqlConnection(connectionString ?? ConnectionString))
+			{
+				SqlCommand cmd = new SqlCommand();
+				PrepareCommand(cmd, conn, null, cmdType, cmdText, commandParameters);
+				using (SqlDataAdapter sda = new SqlDataAdapter(cmd))
+				{
+					DataTable dt = new DataTable();
+					sda.Fill(dt);
+					return dt;
+				}
+			}
+		}
 
-        public static DataTable ExcuteQuery(SqlConnection connection, string cmdText, List<SqlParameter> commandParameters = null, CommandType cmdType = CommandType.Text)
-        {
-            bool isConnClosed = connection.State == ConnectionState.Closed;
-            SqlCommand cmd = new SqlCommand();
-            PrepareCommand(cmd, connection, null, cmdType, cmdText, commandParameters);
-            using (SqlDataAdapter sda = new SqlDataAdapter(cmd))
-            {
-                DataTable dt = new DataTable();
-                sda.Fill(dt);
-                if (isConnClosed)
-                {
-                    connection.Close();
-                }
-                return dt;
-            }
-        }
+		public static DataTable ExcuteQuery(SqlConnection connection, string cmdText, List<SqlParameter> commandParameters = null, CommandType cmdType = CommandType.Text)
+		{
+			bool isConnClosed = connection.State == ConnectionState.Closed;
+			SqlCommand cmd = new SqlCommand();
+			PrepareCommand(cmd, connection, null, cmdType, cmdText, commandParameters);
+			using (SqlDataAdapter sda = new SqlDataAdapter(cmd))
+			{
+				DataTable dt = new DataTable();
+				sda.Fill(dt);
+				if (isConnClosed)
+				{
+					connection.Close();
+				}
+				return dt;
+			}
+		}
 
-        public static object ExecuteScalar(string cmdText, List<SqlParameter> commandParameters = null, string connectionString = null, CommandType cmdType = CommandType.Text)
-        {
-            using (SqlConnection connection = new SqlConnection(connectionString ?? ConnectionString))
-            {
-                SqlCommand cmd = new SqlCommand();
-                PrepareCommand(cmd, connection, null, cmdType, cmdText, commandParameters);
-                return cmd.ExecuteScalar();
-            }
-        }
+		public static object ExecuteScalar(string cmdText, List<SqlParameter> commandParameters = null, string connectionString = null, CommandType cmdType = CommandType.Text)
+		{
+			using (SqlConnection connection = new SqlConnection(connectionString ?? ConnectionString))
+			{
+				SqlCommand cmd = new SqlCommand();
+				PrepareCommand(cmd, connection, null, cmdType, cmdText, commandParameters);
+				return cmd.ExecuteScalar();
+			}
+		}
 
-        public static object ExecuteScalar(SqlConnection connection, string cmdText, List<SqlParameter> commandParameters = null, CommandType cmdType = CommandType.Text)
-        {
-            bool isConnClosed = connection.State == ConnectionState.Closed;
-            SqlCommand cmd = new SqlCommand();
-            PrepareCommand(cmd, connection, null, cmdType, cmdText, commandParameters);
-            object result = cmd.ExecuteScalar();
-            if (isConnClosed)
-            {
-                connection.Close();
-            }
-            return result;
-        }
+		public static object ExecuteScalar(SqlConnection connection, string cmdText, List<SqlParameter> commandParameters = null, CommandType cmdType = CommandType.Text)
+		{
+			bool isConnClosed = connection.State == ConnectionState.Closed;
+			SqlCommand cmd = new SqlCommand();
+			PrepareCommand(cmd, connection, null, cmdType, cmdText, commandParameters);
+			object result = cmd.ExecuteScalar();
+			if (isConnClosed)
+			{
+				connection.Close();
+			}
+			return result;
+		}
 
-        public static bool ExecuteTransaction(SqlConnection conn, List<string> cmdTextes, List<List<SqlParameter>> commandParameterses)
-        {
-            bool flag = false;
-            if (cmdTextes.Count == commandParameterses.Count)
-            {
-                SqlTransaction sqlTran = conn.BeginTransaction();
-                try
-                {
-                    conn.Open();
-                    for (int i = 0; i < cmdTextes.Count; i++)
-                    {
-                        ExecuteNonQuery(sqlTran, cmdTextes[i], commandParameterses[i]);
-                    }
-                    sqlTran.Commit();
-                    flag = true;
-                    conn.Close();
-                }
-                catch (Exception e)
-                {
-                    sqlTran.Rollback();
-                }
-            }
-            return flag;
-        }
+		public static bool ExecuteTransaction(SqlConnection conn, List<string> cmdTextes, List<List<SqlParameter>> commandParameterses)
+		{
+			bool flag = false;
+			if (cmdTextes.Count == commandParameterses.Count)
+			{
+				SqlTransaction sqlTran = conn.BeginTransaction();
+				try
+				{
+					conn.Open();
+					for (int i = 0; i < cmdTextes.Count; i++)
+					{
+						ExecuteNonQuery(sqlTran, cmdTextes[i], commandParameterses[i]);
+					}
+					sqlTran.Commit();
+					flag = true;
+					conn.Close();
+				}
+				catch (Exception e)
+				{
+					sqlTran.Rollback();
+				}
+			}
+			return flag;
+		}
 
-        public static bool ExecuteTransaction(List<string> cmdTextes, List<List<SqlParameter>> commandParameterses, string connectionString = null)
-        {
-            bool flag = false;
-            if (cmdTextes.Count == commandParameterses.Count)
-            {
-                using (SqlConnection conn = new SqlConnection(connectionString ?? ConnectionString))
-                {
-                    SqlTransaction sqlTran = conn.BeginTransaction();
-                    try
-                    {
-                        conn.Open();
-                        for (int i = 0; i < cmdTextes.Count; i++)
-                        {
-                            ExecuteNonQuery(sqlTran, cmdTextes[i], commandParameterses[i]);
-                        }
-                        sqlTran.Commit();
-                        flag = true;
-                        conn.Close();
-                    }
-                    catch (Exception e)
-                    {
-                        sqlTran.Rollback();
-                    }
-                }
-            }
-            return flag;
-        }
-    }
-}
+		public static bool ExecuteTransaction(List<string> cmdTextes, List<List<SqlParameter>> commandParameterses, string connectionString = null)
+		{
+			bool flag = false;
+			if (cmdTextes.Count == commandParameterses.Count)
+			{
+				using (SqlConnection conn = new SqlConnection(connectionString ?? ConnectionString))
+				{
+					SqlTransaction sqlTran = conn.BeginTransaction();
+					try
+					{
+						conn.Open();
+						for (int i = 0; i < cmdTextes.Count; i++)
+						{
+							ExecuteNonQuery(sqlTran, cmdTextes[i], commandParameterses[i]);
+						}
+						sqlTran.Commit();
+						flag = true;
+						conn.Close();
+					}
+					catch (Exception e)
+					{
+						sqlTran.Rollback();
+					}
+				}
+			}
+			return flag;
+		}
+	}
