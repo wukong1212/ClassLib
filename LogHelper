@@ -1,0 +1,39 @@
+using System;
+using System.IO;
+using System.Text;
+
+/// <summary>
+/// 简单日志记录类
+/// </summary>
+public static class LogHelper
+{
+    private static string S_path;
+    private static string S_filePath;
+    private static readonly object S_objLock = new object();
+
+    static LogHelper()
+    {
+        S_path = AppDomain.CurrentDomain.SetupInformation.ApplicationBase + @"Log\";
+        if (!Directory.Exists(S_path))
+        {
+            Directory.CreateDirectory(S_path);
+        }
+    }
+
+    public static void WriteLog(string logText)
+    {
+        lock (S_objLock)
+        {
+            S_filePath = S_path + DateTime.Now.ToString("yyyy-MM-dd") + ".log";
+            using (StreamWriter sw = new StreamWriter(S_filePath, true, Encoding.UTF8))
+            {
+                sw.WriteLine(System.DateTime.Now.ToString() + "\t" + logText);
+            }
+        }
+    }
+
+    public static void WriteLog(Exception ex)
+    {
+        WriteLog(string.Format("{0}{1}{0}", Environment.NewLine, ex.ToString()));
+    }
+}
