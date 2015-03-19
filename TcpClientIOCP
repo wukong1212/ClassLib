@@ -41,7 +41,7 @@ namespace ClassLib
         public event Action OnDisconnect;
         #endregion
 
-        public SocketClient()
+        public TcpClientIOCP()
         {
             this.ReceiveBufferSize = UInt16.MaxValue;
             this.ReceiveSleep = 5;
